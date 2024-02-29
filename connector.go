@@ -49,7 +49,6 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	}
 
 	return &conn{
-		ctx:    ctx,
 		client: client,
 		config: c.config,
 	}, nil

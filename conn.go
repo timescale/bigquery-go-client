@@ -16,7 +16,6 @@ var (
 )
 
 type conn struct {
-	ctx       context.Context
 	client    *bigquery.Client
 	config    Config
 	sessionID string
