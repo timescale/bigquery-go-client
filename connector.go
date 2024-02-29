@@ -43,7 +43,11 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 		opts = append(opts, option.WithCredentialsJSON(c.config.CredentialsJSON))
 	}
 
-	client, err := bigquery.NewClient(ctx, c.config.ProjectID, opts...)
+	// NOTE: We can't pass the provided context to NewClient, or it will cease
+	// working when the context is cancelled (whereas the context provided to
+	// this function should only control the lifetime of the connection event
+	// itself).
+	client, err := bigquery.NewClient(context.Background(), c.config.ProjectID, opts...)
 	if err != nil {
 		return nil, err
 	}
