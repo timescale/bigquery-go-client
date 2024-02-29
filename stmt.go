@@ -74,7 +74,6 @@ func (s *stmt) iterator(ctx context.Context, args []driver.NamedValue) (*bigquer
 
 func (s *stmt) buildQuery(args []driver.NamedValue) *bigquery.Query {
 	query := s.connection.client.Query(s.query)
-	query.DefaultProjectID = s.connection.config.ProjectID
 	query.DefaultDatasetID = s.connection.config.Dataset
 	query.Parameters = s.buildParameters(args)
 	query.ConnectionProperties = s.buildConnectionProperties()
