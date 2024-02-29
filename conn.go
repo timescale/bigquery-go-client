@@ -8,11 +8,11 @@ import (
 )
 
 var (
-	_ driver.Conn           = &conn{}
-	_ driver.Pinger         = &conn{}
-	_ driver.Validator      = &conn{}
-	_ driver.ExecerContext  = &conn{}
-	_ driver.QueryerContext = &conn{}
+	_ driver.Conn           = (*conn)(nil)
+	_ driver.Pinger         = (*conn)(nil)
+	_ driver.Validator      = (*conn)(nil)
+	_ driver.ExecerContext  = (*conn)(nil)
+	_ driver.QueryerContext = (*conn)(nil)
 )
 
 type conn struct {
