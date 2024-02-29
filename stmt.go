@@ -59,17 +59,15 @@ func (s *stmt) QueryContext(ctx context.Context, args []driver.NamedValue) (driv
 func (s *stmt) iterator(ctx context.Context, args []driver.NamedValue) (*bigquery.RowIterator, error) {
 	query := s.buildQuery(args)
 
-	if query.CreateSession {
-		job, err := query.Run(ctx)
-		if err != nil {
-			return nil, err
-		}
-
-		s.connection.sessionID = job.LastStatus().Statistics.SessionInfo.SessionID
-		return job.Read(ctx)
+	job, err := query.Run(ctx)
+	if err != nil {
+		return nil, err
 	}
 
-	return query.Read(ctx)
+	if s.connection.sessionID == "" {
+		s.connection.sessionID = job.LastStatus().Statistics.SessionInfo.SessionID
+	}
+	return job.Read(ctx)
 }
 
 func (s *stmt) buildQuery(args []driver.NamedValue) *bigquery.Query {
