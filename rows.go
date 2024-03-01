@@ -11,6 +11,11 @@ import (
 var (
 	_ driver.Rows                           = (*rows)(nil)
 	_ driver.RowsColumnTypeDatabaseTypeName = (*rows)(nil)
+	_ driver.RowsColumnTypeLength           = (*rows)(nil)
+	_ driver.RowsColumnTypePrecisionScale   = (*rows)(nil)
+
+	// TODO:
+	// _ driver.RowsColumnTypeScanType         = (*rows)(nil)
 )
 
 type rows struct {
@@ -40,8 +45,20 @@ func (r *rows) Columns() []string {
 }
 
 func (r *rows) ColumnTypeDatabaseTypeName(index int) string {
-	schema := r.schema()
-	return string(schema[index].Type)
+	field := r.schema()[index]
+	return string(field.Type)
+}
+
+func (r *rows) ColumnTypeLength(index int) (int64, bool) {
+	field := r.schema()[index]
+	ok := field.MaxLength != 0
+	return field.MaxLength, ok
+}
+
+func (r *rows) ColumnTypePrecisionScale(index int) (int64, int64, bool) {
+	field := r.schema()[index]
+	ok := field.Precision != 0 || field.Scale != 0
+	return field.Precision, field.Scale, ok
 }
 
 func (r *rows) Close() error {
