@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/big"
 	"reflect"
 	"time"
 
 	"cloud.google.com/go/bigquery"
+	"cloud.google.com/go/civil"
 	"google.golang.org/api/iterator"
 )
 
@@ -111,14 +113,6 @@ func (r *rows) next() ([]bigquery.Value, error) {
 	return values, nil
 }
 
-var (
-	stringType  = reflect.TypeFor[string]()
-	bytesType   = reflect.TypeFor[[]byte]()
-	int64Type   = reflect.TypeFor[int64]()
-	float64Type = reflect.TypeFor[float64]()
-	timeType    = reflect.TypeFor[time.Time]()
-)
-
 func (r *rows) convertValue(field *bigquery.FieldSchema, value bigquery.Value) (driver.Value, error) {
 	if field.Repeated {
 		// TODO: Inflate RECORD types before marshalling
@@ -131,44 +125,96 @@ func (r *rows) convertValue(field *bigquery.FieldSchema, value bigquery.Value) (
 
 	switch field.Type {
 	case bigquery.StringFieldType:
-		// string
+		return convertBasicType[string](field.Type, value)
 	case bigquery.BytesFieldType:
-		// []byte
+		return convertBasicType[[]byte](field.Type, value)
 	case bigquery.IntegerFieldType:
-		// int64
+		return convertBasicType[int64](field.Type, value)
 	case bigquery.FloatFieldType:
-		// float64
+		return convertBasicType[float64](field.Type, value)
 	case bigquery.BooleanFieldType:
-		// bool
+		return convertBasicType[bool](field.Type, value)
 	case bigquery.TimestampFieldType:
-		// time.Time
+		return convertBasicType[time.Time](field.Type, value)
 	case bigquery.RecordFieldType:
 		// TODO: Inflate RECORD types
 		// []bigquery.Value
 	case bigquery.DateFieldType:
-		// TODO: Convert to string (or time?)
-		// civil.Date
+		return convertStringType[civil.Date](field.Type, value)
 	case bigquery.TimeFieldType:
-		// TODO: Convert to string (or time?)
-		// civil.Time
+		return convertStringType[civil.Time](field.Type, value)
 	case bigquery.DateTimeFieldType:
-		// TODO: Convert to string (or time?)
-		// civil.DateTime
+		return convertStringType[civil.DateTime](field.Type, value)
 	case bigquery.NumericFieldType:
-		// TODO: Convert to string (?)
-		// *big.Rat
-	case bigquery.GeographyFieldType:
-		// ???
+		return convertRatType(field.Type, value, bigquery.NumericString)
 	case bigquery.BigNumericFieldType:
-		// TODO: Convert to string (?)
-		// *big.Rat
+		return convertRatType(field.Type, value, bigquery.BigNumericString)
+	case bigquery.GeographyFieldType:
+		return convertBasicType[string](field.Type, value)
 	case bigquery.IntervalFieldType:
-		// ???
+		return convertBasicType[string](field.Type, value)
 	case bigquery.JSONFieldType:
-		// ???
+		return convertBasicType[string](field.Type, value)
 	case bigquery.RangeFieldType:
-		// ???
+		return convertBasicType[string](field.Type, value)
+	default:
+		return nil, &InvalidFieldTypeError{
+			FieldType: field.Type,
+		}
 	}
 
 	return value, nil
+}
+
+func convertBasicType[T any](fieldType bigquery.FieldType, value bigquery.Value) (driver.Value, error) {
+	switch val := value.(type) {
+	case nil, T, *T:
+		return val, nil
+	default:
+		return nil, &UnexpectedTypeError{
+			FieldType: fieldType,
+			Expected:  reflect.TypeFor[T](),
+			Actual:    val,
+		}
+	}
+}
+
+func convertStringType[T fmt.Stringer](fieldType bigquery.FieldType, value bigquery.Value) (driver.Value, error) {
+	switch val := value.(type) {
+	case nil:
+		return val, nil
+	case T:
+		return val.String(), nil
+	default:
+		return nil, &UnexpectedTypeError{
+			FieldType: fieldType,
+			Expected:  reflect.TypeFor[T](),
+			Actual:    val,
+		}
+	}
+}
+
+type ratToStr func(*big.Rat) string
+
+func convertRatType(fieldType bigquery.FieldType, value bigquery.Value, toStr ratToStr) (driver.Value, error) {
+	switch val := value.(type) {
+	case nil:
+		return val, nil
+	case *big.Rat:
+		// Attempt to use the minimum number of digits after the decimal point,
+		// if the resulting number will be exact.
+		if prec, exact := val.FloatPrec(); exact {
+			return val.FloatString(prec), nil
+		}
+
+		// Otherwise, fallback to default string conversion function, which
+		// uses the maximum number of digits supported by BigQuery.
+		return toStr(val), nil
+	default:
+		return nil, &UnexpectedTypeError{
+			FieldType: fieldType,
+			Expected:  reflect.TypeFor[*big.Rat](),
+			Actual:    val,
+		}
+	}
 }
