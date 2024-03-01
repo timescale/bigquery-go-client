@@ -64,10 +64,24 @@ func (s *stmt) iterator(ctx context.Context, args []driver.NamedValue) (*bigquer
 		return nil, err
 	}
 
-	if s.connection.sessionID == "" {
-		s.connection.sessionID = job.LastStatus().Statistics.SessionInfo.SessionID
+	if sessionID := getSessionID(job); sessionID != "" {
+		s.connection.sessionID = sessionID
 	}
 	return job.Read(ctx)
+}
+
+func getSessionID(job *bigquery.Job) string {
+	status := job.LastStatus()
+	if status == nil {
+		return ""
+	}
+	if status.Statistics == nil {
+		return ""
+	}
+	if status.Statistics.SessionInfo == nil {
+		return ""
+	}
+	return status.Statistics.SessionInfo.SessionID
 }
 
 func (s *stmt) buildQuery(args []driver.NamedValue) *bigquery.Query {
