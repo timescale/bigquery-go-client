@@ -7,6 +7,14 @@ import (
 	"cloud.google.com/go/bigquery"
 )
 
+type InvalidConnectionStringError struct {
+	Err error
+}
+
+func (e *InvalidConnectionStringError) Error() string {
+	return fmt.Sprintf("invalid connection string: %w", e.Err)
+}
+
 type UnexpectedTypeError struct {
 	FieldType bigquery.FieldType
 	Expected  reflect.Type
