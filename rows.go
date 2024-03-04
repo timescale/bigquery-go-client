@@ -43,7 +43,7 @@ func (r *rows) Columns() []string {
 
 func (r *rows) ColumnTypeDatabaseTypeName(index int) string {
 	field := r.schema()[index]
-	return columnType(field.Type)
+	return columnType(field)
 }
 
 func columnType(field *bigquery.FieldSchema) string {
@@ -61,7 +61,7 @@ func columnUnitType(field *bigquery.FieldSchema) string {
 		return "INT64"
 	case bigquery.FloatFieldType:
 		return "FLOAT64"
-	case bigquery.RangeType:
+	case bigquery.RangeFieldType:
 		return columnRangeType(field)
 	case bigquery.RecordFieldType:
 		return columnRecordType(field)
