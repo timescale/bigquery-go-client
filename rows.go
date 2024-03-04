@@ -20,9 +20,7 @@ var (
 	_ driver.RowsColumnTypeDatabaseTypeName = (*rows)(nil)
 	_ driver.RowsColumnTypeLength           = (*rows)(nil)
 	_ driver.RowsColumnTypePrecisionScale   = (*rows)(nil)
-
-	// TODO:
-	// _ driver.RowsColumnTypeScanType         = (*rows)(nil)
+	_ driver.RowsColumnTypeScanType         = (*rows)(nil)
 )
 
 type rows struct {
@@ -46,6 +44,8 @@ func (r *rows) ColumnTypeDatabaseTypeName(index int) string {
 	return columnType(field)
 }
 
+// Returns the data type for a column/field, as specified in the BigQuery docs:
+// https://cloud.google.com/bigquery/docs/reference/standard-sql/data-types
 func columnType(field *bigquery.FieldSchema) string {
 	if field.Repeated {
 		return columnRepeatedType(field)
@@ -97,6 +97,47 @@ func (r *rows) ColumnTypePrecisionScale(index int) (int64, int64, bool) {
 	field := r.schema()[index]
 	ok := field.Precision != 0 || field.Scale != 0
 	return field.Precision, field.Scale, ok
+}
+
+var (
+	stringPtrType  = reflect.PointerTo(reflect.TypeFor[string]())
+	bytesPtrType   = reflect.PointerTo(reflect.TypeFor[[]byte]())
+	int64PtrType   = reflect.PointerTo(reflect.TypeFor[int64]())
+	float64PtrType = reflect.PointerTo(reflect.TypeFor[float64]())
+	boolPtrType    = reflect.PointerTo(reflect.TypeFor[bool]())
+	timePtrType    = reflect.PointerTo(reflect.TypeFor[time.Time]())
+	anyType        = reflect.PointerTo(reflect.TypeFor[any]())
+)
+
+func (r *rows) ColumnTypeScanType(index int) reflect.Type {
+	field := r.schema()[index]
+
+	switch field.Type {
+	case bigquery.IntegerFieldType:
+		return int64PtrType
+	case bigquery.FloatFieldType:
+		return float64PtrType
+	case bigquery.BooleanFieldType:
+		return boolPtrType
+	case bigquery.TimestampFieldType:
+		return timePtrType
+	case bigquery.StringFieldType,
+		bigquery.DateFieldType,
+		bigquery.TimeFieldType,
+		bigquery.DateTimeFieldType,
+		bigquery.NumericFieldType,
+		bigquery.BigNumericFieldType,
+		bigquery.GeographyFieldType,
+		bigquery.IntervalFieldType,
+		bigquery.RangeFieldType:
+		return stringPtrType
+	case bigquery.BytesFieldType,
+		bigquery.JSONFieldType,
+		bigquery.RecordFieldType:
+		return bytesPtrType
+	default:
+		return anyType
+	}
 }
 
 func (r *rows) Close() error {
