@@ -7,6 +7,7 @@ import (
 	"io"
 	"math/big"
 	"reflect"
+	"strings"
 	"time"
 
 	"cloud.google.com/go/bigquery"
@@ -42,7 +43,48 @@ func (r *rows) Columns() []string {
 
 func (r *rows) ColumnTypeDatabaseTypeName(index int) string {
 	field := r.schema()[index]
-	return string(field.Type)
+	return columnType(field.Type)
+}
+
+func columnType(field *bigquery.FieldSchema) string {
+	if field.Repeated {
+		return columnRepeatedType(field)
+	}
+	return columnUnitType(field)
+}
+
+func columnUnitType(field *bigquery.FieldSchema) string {
+	switch field.Type {
+	case bigquery.BooleanFieldType:
+		return "BOOL"
+	case bigquery.IntegerFieldType:
+		return "INT64"
+	case bigquery.FloatFieldType:
+		return "FLOAT64"
+	case bigquery.RangeType:
+		return columnRangeType(field)
+	case bigquery.RecordFieldType:
+		return columnRecordType(field)
+	default:
+		return string(field.Type)
+	}
+}
+
+func columnRepeatedType(field *bigquery.FieldSchema) string {
+	t := columnUnitType(field)
+	return fmt.Sprintf("ARRAY<%s>", t)
+}
+
+func columnRecordType(field *bigquery.FieldSchema) string {
+	rts := make([]string, len(field.Schema))
+	for i, rf := range field.Schema {
+		rts[i] = columnType(rf)
+	}
+	return fmt.Sprintf("STRUCT<%s>", strings.Join(rts, ","))
+}
+
+func columnRangeType(field *bigquery.FieldSchema) string {
+	return fmt.Sprintf("RANGE<%s>", field.RangeElementType.Type)
 }
 
 func (r *rows) ColumnTypeLength(index int) (int64, bool) {
@@ -124,7 +166,7 @@ func convertValue(field *bigquery.FieldSchema, value bigquery.Value) (driver.Val
 	}
 
 	// Marshal ARRAY and RECORD types to JSON, since arrays/maps aren't
-	// valid driver.Value types (but []byte is).
+	// valid driver.Value types.
 	out, err := json.Marshal(val)
 	if err != nil {
 		return nil, fmt.Errorf("error marshalling repeated field to JSON: %w", err)
@@ -226,7 +268,7 @@ func convertRecordType(field *bigquery.FieldSchema, value bigquery.Value) (map[s
 	}
 }
 
-func convertBasicType[T any](field *bigquery.FieldSchema, value bigquery.Value) (driver.Value, error) {
+func convertBasicType[T any](field *bigquery.FieldSchema, value bigquery.Value) (any, error) {
 	switch val := value.(type) {
 	case nil:
 		return nil, nil
@@ -241,7 +283,7 @@ func convertBasicType[T any](field *bigquery.FieldSchema, value bigquery.Value) 
 	}
 }
 
-func convertStringType[T fmt.Stringer](field *bigquery.FieldSchema, value bigquery.Value) (driver.Value, error) {
+func convertStringType[T fmt.Stringer](field *bigquery.FieldSchema, value bigquery.Value) (any, error) {
 	switch val := value.(type) {
 	case nil:
 		return nil, nil
@@ -258,7 +300,7 @@ func convertStringType[T fmt.Stringer](field *bigquery.FieldSchema, value bigque
 
 type ratToStr func(*big.Rat) string
 
-func convertRationalType(field *bigquery.FieldSchema, value bigquery.Value, toStr ratToStr) (driver.Value, error) {
+func convertRationalType(field *bigquery.FieldSchema, value bigquery.Value, toStr ratToStr) (any, error) {
 	switch val := value.(type) {
 	case nil:
 		return nil, nil
