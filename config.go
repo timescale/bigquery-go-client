@@ -16,6 +16,8 @@ type Config struct {
 	Options   []option.ClientOption
 }
 
+// Parses DSN of the form:
+// bigquery://projectID/[location/]dataset?key=val
 func parseDSN(dsn string) (Config, error) {
 	url, err := url.Parse(dsn)
 	if err != nil {
@@ -58,7 +60,7 @@ func parseLocationDataset(url *url.URL) (string, string, error) {
 	case 0:
 		return "", "", nil
 	case 1:
-		return fields[0], "", nil
+		return "", fields[0], nil
 	case 2:
 		return fields[0], fields[1], nil
 	default:
