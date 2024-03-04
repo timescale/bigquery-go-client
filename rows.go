@@ -73,7 +73,7 @@ func (r *rows) Next(dest []driver.Value) error {
 
 	schema := r.schema()
 	for idx := range dest {
-		value, err := r.convertValue(schema[idx], values[idx])
+		value, err := convertValue(schema[idx], values[idx])
 		if err != nil {
 			return err
 		}
@@ -113,81 +113,143 @@ func (r *rows) next() ([]bigquery.Value, error) {
 	return values, nil
 }
 
-func (r *rows) convertValue(field *bigquery.FieldSchema, value bigquery.Value) (driver.Value, error) {
-	if field.Repeated {
-		// TODO: Inflate RECORD types before marshalling
-		out, err := json.Marshal(field)
-		if err != nil {
-			return nil, fmt.Errorf("error marshalling repeated field to JSON: %w", err)
-		}
-		return out, nil
+func convertValue(field *bigquery.FieldSchema, value bigquery.Value) (driver.Value, error) {
+	val, err := convertValueHelper(field, value)
+	if err != nil {
+		return nil, err
 	}
 
+	if driver.IsValue(val) {
+		return val, nil
+	}
+
+	// Marshal ARRAY and RECORD types to JSON, since arrays/maps aren't
+	// valid driver.Value types (but []byte is).
+	out, err := json.Marshal(val)
+	if err != nil {
+		return nil, fmt.Errorf("error marshalling repeated field to JSON: %w", err)
+	}
+	return out, nil
+}
+
+func convertValueHelper(field *bigquery.FieldSchema, value bigquery.Value) (any, error) {
+	if field.Repeated {
+		return convertRepeatedType(field, value)
+	}
+	return convertUnitType(field, value)
+}
+
+func convertUnitType(field *bigquery.FieldSchema, value bigquery.Value) (any, error) {
 	switch field.Type {
 	case bigquery.StringFieldType:
-		return convertBasicType[string](field.Type, value)
+		return convertBasicType[string](field, value)
 	case bigquery.BytesFieldType:
-		return convertBasicType[[]byte](field.Type, value)
+		return convertBasicType[[]byte](field, value)
 	case bigquery.IntegerFieldType:
-		return convertBasicType[int64](field.Type, value)
+		return convertBasicType[int64](field, value)
 	case bigquery.FloatFieldType:
-		return convertBasicType[float64](field.Type, value)
+		return convertBasicType[float64](field, value)
 	case bigquery.BooleanFieldType:
-		return convertBasicType[bool](field.Type, value)
+		return convertBasicType[bool](field, value)
 	case bigquery.TimestampFieldType:
-		return convertBasicType[time.Time](field.Type, value)
-	case bigquery.RecordFieldType:
-		// TODO: Inflate RECORD types
-		// []bigquery.Value
+		return convertBasicType[time.Time](field, value)
 	case bigquery.DateFieldType:
-		return convertStringType[civil.Date](field.Type, value)
+		return convertStringType[civil.Date](field, value)
 	case bigquery.TimeFieldType:
-		return convertStringType[civil.Time](field.Type, value)
+		return convertStringType[civil.Time](field, value)
 	case bigquery.DateTimeFieldType:
-		return convertStringType[civil.DateTime](field.Type, value)
+		return convertStringType[civil.DateTime](field, value)
 	case bigquery.NumericFieldType:
-		return convertRatType(field.Type, value, bigquery.NumericString)
+		return convertRationalType(field, value, bigquery.NumericString)
 	case bigquery.BigNumericFieldType:
-		return convertRatType(field.Type, value, bigquery.BigNumericString)
+		return convertRationalType(field, value, bigquery.BigNumericString)
 	case bigquery.GeographyFieldType:
-		return convertBasicType[string](field.Type, value)
+		return convertBasicType[string](field, value)
 	case bigquery.IntervalFieldType:
-		return convertBasicType[string](field.Type, value)
+		return convertBasicType[string](field, value)
 	case bigquery.JSONFieldType:
-		return convertBasicType[string](field.Type, value)
+		return convertBasicType[string](field, value)
 	case bigquery.RangeFieldType:
-		return convertBasicType[string](field.Type, value)
+		return convertBasicType[string](field, value)
+	case bigquery.RecordFieldType:
+		return convertRecordType(field, value)
 	default:
 		return nil, &InvalidFieldTypeError{
 			FieldType: field.Type,
 		}
 	}
-
-	return value, nil
 }
 
-func convertBasicType[T any](fieldType bigquery.FieldType, value bigquery.Value) (driver.Value, error) {
+func convertRepeatedType(field *bigquery.FieldSchema, value bigquery.Value) ([]any, error) {
 	switch val := value.(type) {
-	case nil, T, *T:
+	case nil:
+		return nil, nil
+	case []bigquery.Value:
+		a := make([]any, len(val))
+		for i, v := range val {
+			av, err := convertUnitType(field, v)
+			if err != nil {
+				return nil, err
+			}
+			a[i] = av
+		}
+		return a, nil
+	default:
+		return nil, &UnexpectedTypeError{
+			FieldType: field.Type,
+			Expected:  reflect.TypeFor[[]bigquery.Value](),
+			Actual:    val,
+		}
+	}
+}
+
+func convertRecordType(field *bigquery.FieldSchema, value bigquery.Value) (map[string]any, error) {
+	switch val := value.(type) {
+	case nil:
+		return nil, nil
+	case []bigquery.Value:
+		m := map[string]any{}
+		for i, mf := range field.Schema {
+			mv, err := convertValueHelper(mf, val[i])
+			if err != nil {
+				return nil, err
+			}
+			m[mf.Name] = mv
+		}
+		return m, nil
+	default:
+		return nil, &UnexpectedTypeError{
+			FieldType: field.Type,
+			Expected:  reflect.TypeFor[[]bigquery.Value](),
+			Actual:    val,
+		}
+	}
+}
+
+func convertBasicType[T any](field *bigquery.FieldSchema, value bigquery.Value) (driver.Value, error) {
+	switch val := value.(type) {
+	case nil:
+		return nil, nil
+	case T:
 		return val, nil
 	default:
 		return nil, &UnexpectedTypeError{
-			FieldType: fieldType,
+			FieldType: field.Type,
 			Expected:  reflect.TypeFor[T](),
 			Actual:    val,
 		}
 	}
 }
 
-func convertStringType[T fmt.Stringer](fieldType bigquery.FieldType, value bigquery.Value) (driver.Value, error) {
+func convertStringType[T fmt.Stringer](field *bigquery.FieldSchema, value bigquery.Value) (driver.Value, error) {
 	switch val := value.(type) {
 	case nil:
-		return val, nil
+		return nil, nil
 	case T:
 		return val.String(), nil
 	default:
 		return nil, &UnexpectedTypeError{
-			FieldType: fieldType,
+			FieldType: field.Type,
 			Expected:  reflect.TypeFor[T](),
 			Actual:    val,
 		}
@@ -196,10 +258,10 @@ func convertStringType[T fmt.Stringer](fieldType bigquery.FieldType, value bigqu
 
 type ratToStr func(*big.Rat) string
 
-func convertRatType(fieldType bigquery.FieldType, value bigquery.Value, toStr ratToStr) (driver.Value, error) {
+func convertRationalType(field *bigquery.FieldSchema, value bigquery.Value, toStr ratToStr) (driver.Value, error) {
 	switch val := value.(type) {
 	case nil:
-		return val, nil
+		return nil, nil
 	case *big.Rat:
 		// Attempt to use the minimum number of digits after the decimal point,
 		// if the resulting number will be exact.
@@ -212,7 +274,7 @@ func convertRatType(fieldType bigquery.FieldType, value bigquery.Value, toStr ra
 		return toStr(val), nil
 	default:
 		return nil, &UnexpectedTypeError{
-			FieldType: fieldType,
+			FieldType: field.Type,
 			Expected:  reflect.TypeFor[*big.Rat](),
 			Actual:    val,
 		}
