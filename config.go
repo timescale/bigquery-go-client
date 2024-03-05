@@ -17,7 +17,7 @@ type Config struct {
 }
 
 // Parses DSN of the form:
-// bigquery://projectID/[location/]dataset?key=val
+// bigquery://projectID[/location][/dataset]?key=val
 func parseDSN(dsn string) (Config, error) {
 	url, err := url.Parse(dsn)
 	if err != nil {

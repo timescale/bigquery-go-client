@@ -237,11 +237,11 @@ func convertUnitType(field *bigquery.FieldSchema, value bigquery.Value) (any, er
 	case bigquery.TimestampFieldType:
 		return convertBasicType[time.Time](field, value)
 	case bigquery.DateFieldType:
-		return convertStringType[civil.Date](field, value)
+		return convertStringerType[civil.Date](field, value)
 	case bigquery.TimeFieldType:
-		return convertStringType[civil.Time](field, value)
+		return convertStringerType[civil.Time](field, value)
 	case bigquery.DateTimeFieldType:
-		return convertStringType[civil.DateTime](field, value)
+		return convertStringerType[civil.DateTime](field, value)
 	case bigquery.NumericFieldType:
 		return convertRationalType(field, value, bigquery.NumericString)
 	case bigquery.BigNumericFieldType:
@@ -250,10 +250,10 @@ func convertUnitType(field *bigquery.FieldSchema, value bigquery.Value) (any, er
 		return convertBasicType[string](field, value)
 	case bigquery.IntervalFieldType:
 		return convertBasicType[string](field, value)
-	case bigquery.JSONFieldType:
-		return convertBasicType[string](field, value)
 	case bigquery.RangeFieldType:
 		return convertBasicType[string](field, value)
+	case bigquery.JSONFieldType:
+		return convertBytesType[string](field, value)
 	case bigquery.RecordFieldType:
 		return convertRecordType(field, value)
 	default:
@@ -324,7 +324,7 @@ func convertBasicType[T any](field *bigquery.FieldSchema, value bigquery.Value) 
 	}
 }
 
-func convertStringType[T fmt.Stringer](field *bigquery.FieldSchema, value bigquery.Value) (any, error) {
+func convertStringerType[T fmt.Stringer](field *bigquery.FieldSchema, value bigquery.Value) (any, error) {
 	switch val := value.(type) {
 	case nil:
 		return nil, nil
@@ -359,6 +359,25 @@ func convertRationalType(field *bigquery.FieldSchema, value bigquery.Value, toSt
 		return nil, &UnexpectedTypeError{
 			FieldType: field.Type,
 			Expected:  reflect.TypeFor[*big.Rat](),
+			Actual:    val,
+		}
+	}
+}
+
+type byteish interface {
+	~[]byte | ~string
+}
+
+func convertBytesType[T byteish](field *bigquery.FieldSchema, value bigquery.Value) (any, error) {
+	switch val := value.(type) {
+	case nil:
+		return nil, nil
+	case T:
+		return []byte(val), nil
+	default:
+		return nil, &UnexpectedTypeError{
+			FieldType: field.Type,
+			Expected:  reflect.TypeFor[T](),
 			Actual:    val,
 		}
 	}
