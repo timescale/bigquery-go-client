@@ -16,7 +16,7 @@ A [database/sql](https://pkg.go.dev/database/sql) driver for BigQuery.
 ## DSN
 
 To connect via the [sql.Open](https://pkg.go.dev/database/sql#Open) method, use
-`bigquery` as the driver name and a DSN (Data Source Name) of the form:
+`bigquery` as the driver name and a DSN (Data Source Name) of the following form:
 
 ```
 bigquery://projectID[/location][/dataset]?key=val
@@ -64,7 +64,7 @@ import (
 	_ "github.com/popsql/bigquery-go-client"
 )
 
-var db = sql.Open("bigquery://PROJECT_ID/LOCATION/DATASET?credentialsFile=/path/to/credentials.json")
+var db, _ = sql.Open("bigquery", "bigquery://PROJECT_ID/LOCATION/DATASET?credentialsFile=/path/to/credentials.json")
 ```
 
 ## Connector
@@ -129,10 +129,17 @@ method returns by default. While this may seem inconvenient, it is necessary to
 satisfy the [driver.Value](https://pkg.go.dev/database/sql/driver#Value)
 requirements, which only allow a narrow range of predefined types. Adhering to
 these requirements ensures that [sql.Rows.Scan](https://pkg.go.dev/database/sql#Rows.Scan)
-functions as described in the documentation.
+always functions as described in the documentation.
 
-Note that the `ARRAY` and `STRUCT` types are returned as a `[]byte` containing
-a JSON representation of the array/struct. Structs are marshalled as JSON
-objects, where each struct field is represented as a key/value in the JSON
-object. It is therefore possible to call [json.Unmarshal](https://pkg.go.dev/encoding/json#Unmarshal)
-to convert the `[]byte` returned into a map or struct of your choosing.
+Note that the `ARRAY` and `STRUCT` types are returned as a `[]byte` value
+containing a JSON representation of the `ARRAY`/`STRUCT`. `STRUCT` types are
+marshalled as JSON objects, where each field is represented as a key/value in
+the JSON object. It should therefore be possible to call
+[json.Unmarshal](https://pkg.go.dev/encoding/json#Unmarshal) to convert the
+`[]byte` returned into a Go map, slice, or struct of your choosing.
+
+To scan directly into a more complex type, create your own
+[sql.Scanner](https://pkg.go.dev/database/sql#Scanner) implementation (for
+example, one that wraps one of the [civil](https://pkg.go.dev/cloud.google.com/go/civil)
+types, for `DATE`/`TIME`/`DATETIME`). Such types might be added to this package in
+the future.
