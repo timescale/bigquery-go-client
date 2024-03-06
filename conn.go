@@ -14,6 +14,7 @@ var (
 	_ driver.Conn               = (*conn)(nil)
 	_ driver.Pinger             = (*conn)(nil)
 	_ driver.Validator          = (*conn)(nil)
+	_ driver.ConnBeginTx        = (*conn)(nil)
 	_ driver.ConnPrepareContext = (*conn)(nil)
 	_ driver.ExecerContext      = (*conn)(nil)
 	_ driver.QueryerContext     = (*conn)(nil)
