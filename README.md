@@ -8,6 +8,9 @@ A [database/sql](https://pkg.go.dev/database/sql) driver for BigQuery.
 - Supports query cancellation and timeouts via [context.Context](https://pkg.go.dev/context).
 - Supports sessions (each [sql.Conn](https://pkg.go.dev/database/sql#Conn) maps
   to a single [BigQuery session](https://cloud.google.com/bigquery/docs/sessions-intro)).
+- Supports transactions via [sql.DB.BeginTx](https://pkg.go.dev/database/sql#DB.BeginTx)
+  and related methods. Note that only the default [sql.IsolationLevel](https://pkg.go.dev/database/sql#IsolationLevel)
+  is supported, and read-only transactions are not supported.
 - Compliant with the [database/sql](https://pkg.go.dev/database/sql) package
   interface. In particular, only valid [driver.Value](https://pkg.go.dev/database/sql/driver#Value)
   types are returned, and the driver therefore behaves as documented in the
