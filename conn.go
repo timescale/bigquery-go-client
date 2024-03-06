@@ -2,17 +2,21 @@ package driver
 
 import (
 	"context"
+	"database/sql"
 	"database/sql/driver"
+	"errors"
+	"fmt"
 
 	"cloud.google.com/go/bigquery"
 )
 
 var (
-	_ driver.Conn           = (*conn)(nil)
-	_ driver.Pinger         = (*conn)(nil)
-	_ driver.Validator      = (*conn)(nil)
-	_ driver.ExecerContext  = (*conn)(nil)
-	_ driver.QueryerContext = (*conn)(nil)
+	_ driver.Conn               = (*conn)(nil)
+	_ driver.Pinger             = (*conn)(nil)
+	_ driver.Validator          = (*conn)(nil)
+	_ driver.ConnPrepareContext = (*conn)(nil)
+	_ driver.ExecerContext      = (*conn)(nil)
+	_ driver.QueryerContext     = (*conn)(nil)
 )
 
 type conn struct {
@@ -30,10 +34,16 @@ func (c *conn) Ping(ctx context.Context) error {
 }
 
 func (c *conn) IsValid() bool {
+	// TODO: Return false if session has ended
+	// (can connection be broken in any other way?)
 	return true
 }
 
 func (c *conn) Prepare(query string) (driver.Stmt, error) {
+	return c.PrepareContext(context.Background(), query)
+}
+
+func (c *conn) PrepareContext(ctx context.Context, query string) (driver.Stmt, error) {
 	return &stmt{
 		connection: c,
 		query:      query,
@@ -65,5 +75,21 @@ func (c *conn) Close() error {
 }
 
 func (c *conn) Begin() (driver.Tx, error) {
-	return &bigQueryTransaction{c}, nil
+	return c.BeginTx(context.Background(), driver.TxOptions{})
+}
+
+func (c *conn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver.Tx, error) {
+	if level := sql.IsolationLevel(opts.Isolation); level != sql.LevelDefault {
+		return nil, fmt.Errorf("invalid isolation level (only sql.LevelDefault is supported): %s", level)
+	}
+
+	if opts.ReadOnly {
+		return nil, errors.New("read-only transactions not supported")
+	}
+
+	if _, err := c.ExecContext(ctx, "BEGIN TRANSACTION", nil); err != nil {
+		return nil, err
+	}
+
+	return &tx{conn: c}, nil
 }
