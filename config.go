@@ -1,4 +1,4 @@
-package driver
+package bigquery
 
 import (
 	"encoding/base64"
