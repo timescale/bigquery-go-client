@@ -249,7 +249,7 @@ func convertUnitType(field *bigquery.FieldSchema, value bigquery.Value) (any, er
 	case bigquery.GeographyFieldType:
 		return convertBasicType[string](field, value)
 	case bigquery.IntervalFieldType:
-		return convertBasicType[string](field, value)
+		return convertStringerType[*bigquery.IntervalValue](field, value)
 	case bigquery.RangeFieldType:
 		return convertBasicType[string](field, value)
 	case bigquery.JSONFieldType:
