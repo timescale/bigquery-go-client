@@ -210,7 +210,7 @@ func convertValue(field *bigquery.FieldSchema, value bigquery.Value) (driver.Val
 	// valid driver.Value types.
 	out, err := json.Marshal(val)
 	if err != nil {
-		return nil, fmt.Errorf("error marshalling repeated field to JSON: %w", err)
+		return nil, fmt.Errorf("error marshalling %s field to JSON: %w", columnType(field), err)
 	}
 	return out, nil
 }
@@ -257,7 +257,7 @@ func convertUnitType(field *bigquery.FieldSchema, value bigquery.Value) (any, er
 	case bigquery.RecordFieldType:
 		return convertRecordType(field, value)
 	default:
-		return nil, &InvalidFieldTypeError{
+		return nil, &invalidFieldTypeError{
 			FieldType: field.Type,
 		}
 	}
@@ -278,7 +278,7 @@ func convertRepeatedType(field *bigquery.FieldSchema, value bigquery.Value) ([]a
 		}
 		return a, nil
 	default:
-		return nil, &UnexpectedTypeError{
+		return nil, &unexpectedTypeError{
 			FieldType: field.Type,
 			Expected:  reflect.TypeFor[[]bigquery.Value](),
 			Actual:    val,
@@ -301,7 +301,7 @@ func convertRecordType(field *bigquery.FieldSchema, value bigquery.Value) (map[s
 		}
 		return m, nil
 	default:
-		return nil, &UnexpectedTypeError{
+		return nil, &unexpectedTypeError{
 			FieldType: field.Type,
 			Expected:  reflect.TypeFor[[]bigquery.Value](),
 			Actual:    val,
@@ -316,7 +316,7 @@ func convertBasicType[T any](field *bigquery.FieldSchema, value bigquery.Value) 
 	case T:
 		return val, nil
 	default:
-		return nil, &UnexpectedTypeError{
+		return nil, &unexpectedTypeError{
 			FieldType: field.Type,
 			Expected:  reflect.TypeFor[T](),
 			Actual:    val,
@@ -331,7 +331,7 @@ func convertStringerType[T fmt.Stringer](field *bigquery.FieldSchema, value bigq
 	case T:
 		return val.String(), nil
 	default:
-		return nil, &UnexpectedTypeError{
+		return nil, &unexpectedTypeError{
 			FieldType: field.Type,
 			Expected:  reflect.TypeFor[T](),
 			Actual:    val,
@@ -356,7 +356,7 @@ func convertRationalType(field *bigquery.FieldSchema, value bigquery.Value, toSt
 		// uses the maximum number of digits supported by BigQuery.
 		return toStr(val), nil
 	default:
-		return nil, &UnexpectedTypeError{
+		return nil, &unexpectedTypeError{
 			FieldType: field.Type,
 			Expected:  reflect.TypeFor[*big.Rat](),
 			Actual:    val,
@@ -375,7 +375,7 @@ func convertBytesType[T byteish](field *bigquery.FieldSchema, value bigquery.Val
 	case T:
 		return []byte(val), nil
 	default:
-		return nil, &UnexpectedTypeError{
+		return nil, &unexpectedTypeError{
 			FieldType: field.Type,
 			Expected:  reflect.TypeFor[T](),
 			Actual:    val,

@@ -21,29 +21,23 @@ type Config struct {
 func parseDSN(dsn string) (Config, error) {
 	url, err := url.Parse(dsn)
 	if err != nil {
-		return Config{}, &InvalidConnectionStringError{
-			Err: err,
-		}
+		return Config{}, &invalidConnStrError{Err: err}
 	}
 
 	if url.Scheme != "bigquery" {
-		return Config{}, &InvalidConnectionStringError{
-			Err: fmt.Errorf("invalid scheme: expected 'bigquery://', received: '%s'", url.Scheme),
+		return Config{}, &invalidConnStrError{
+			Err: fmt.Errorf("invalid scheme: %s", url.Scheme),
 		}
 	}
 
 	location, dataset, err := parseLocationDataset(url)
 	if err != nil {
-		return Config{}, &InvalidConnectionStringError{
-			Err: err,
-		}
+		return Config{}, &invalidConnStrError{Err: err}
 	}
 
 	options, err := parseOptions(url)
 	if err != nil {
-		return Config{}, &InvalidConnectionStringError{
-			Err: err,
-		}
+		return Config{}, &invalidConnStrError{Err: err}
 	}
 
 	return Config{
