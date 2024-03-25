@@ -6,17 +6,19 @@ import (
 	"cloud.google.com/go/bigquery"
 )
 
-type jobStatsOpt struct {
-	stats **bigquery.JobStatistics
+type Job = *bigquery.Job
+
+type jobOpt struct {
+	job *Job
 }
 
-// GetJobStatistics can be passed as an argument to a Query or Exec method to
-// get back the job's statistics from BigQuery. The **bigquery.JobStatistics
-// parameter must be non-nil. It will be populated with a *bigquery.JobStatistics
-// value by the time the Query/Exec method returns.
-func GetJobStatistics(stats **bigquery.JobStatistics) jobStatsOpt {
-	if stats == nil {
-		panic(errors.New("WithJobStatistics expects non-nil *bigquery.JobStatistics parameter"))
+// GetJob can be passed as an argument to a Query or Exec method to get a
+// handle on the BigQuery job for the query (e.g. to get its statistics after
+// the query completes). The *Job parameter must be non-nil. It will be
+// populated with a Job value by the time Query/Exec method returns.
+func GetJob(job *Job) jobOpt {
+	if job == nil {
+		panic(errors.New("GetJob expects non-nil *Job parameter"))
 	}
-	return jobStatsOpt{stats: stats}
+	return jobOpt{job: job}
 }

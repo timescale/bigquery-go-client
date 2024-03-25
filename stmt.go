@@ -64,34 +64,29 @@ func (s *stmt) iterator(ctx context.Context, args []driver.NamedValue) (*bigquer
 		return nil, err
 	}
 
-	statistics := getJobStatistics(job)
-	if s.conn.jobStatsOpt != nil {
-		*s.conn.jobStatsOpt.stats = statistics
-		s.conn.jobStatsOpt = &jobStatsOpt{}
+	if s.conn.jobOpt != nil {
+		*(s.conn.jobOpt.job) = job
+		s.conn.jobOpt = &jobOpt{}
 	}
 
-	if sessionID := getSessionID(statistics); sessionID != "" {
+	if sessionID := getSessionID(job); sessionID != "" {
 		s.conn.sessionID = sessionID
 	}
 	return job.Read(ctx)
 }
 
-func getJobStatistics(job *bigquery.Job) *bigquery.JobStatistics {
+func getSessionID(job *bigquery.Job) string {
 	status := job.LastStatus()
 	if status == nil {
-		return nil
-	}
-	return status.Statistics
-}
-
-func getSessionID(statistics *bigquery.JobStatistics) string {
-	if statistics == nil {
 		return ""
 	}
-	if statistics.SessionInfo == nil {
+	if status.Statistics == nil {
 		return ""
 	}
-	return statistics.SessionInfo.SessionID
+	if status.Statistics.SessionInfo == nil {
+		return ""
+	}
+	return status.Statistics.SessionInfo.SessionID
 }
 
 func (s *stmt) buildQuery(args []driver.NamedValue) *bigquery.Query {
