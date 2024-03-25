@@ -14,8 +14,8 @@ var (
 )
 
 type stmt struct {
-	connection *conn
-	query      string
+	conn  *conn
+	query string
 }
 
 func (s *stmt) Close() error {
@@ -64,32 +64,42 @@ func (s *stmt) iterator(ctx context.Context, args []driver.NamedValue) (*bigquer
 		return nil, err
 	}
 
-	if sessionID := getSessionID(job); sessionID != "" {
-		s.connection.sessionID = sessionID
+	statistics := getJobStatistics(job)
+	if s.conn.jobStatsOpt != nil {
+		*s.conn.jobStatsOpt.stats = statistics
+		s.conn.jobStatsOpt = &jobStatsOpt{}
+	}
+
+	if sessionID := getSessionID(statistics); sessionID != "" {
+		s.conn.sessionID = sessionID
 	}
 	return job.Read(ctx)
 }
 
-func getSessionID(job *bigquery.Job) string {
+func getJobStatistics(job *bigquery.Job) *bigquery.JobStatistics {
 	status := job.LastStatus()
 	if status == nil {
+		return nil
+	}
+	return status.Statistics
+}
+
+func getSessionID(statistics *bigquery.JobStatistics) string {
+	if statistics == nil {
 		return ""
 	}
-	if status.Statistics == nil {
+	if statistics.SessionInfo == nil {
 		return ""
 	}
-	if status.Statistics.SessionInfo == nil {
-		return ""
-	}
-	return status.Statistics.SessionInfo.SessionID
+	return statistics.SessionInfo.SessionID
 }
 
 func (s *stmt) buildQuery(args []driver.NamedValue) *bigquery.Query {
-	query := s.connection.client.Query(s.query)
-	query.DefaultDatasetID = s.connection.config.Dataset
+	query := s.conn.client.Query(s.query)
+	query.DefaultDatasetID = s.conn.config.Dataset
 	query.Parameters = s.buildParameters(args)
 	query.ConnectionProperties = s.buildConnectionProperties()
-	query.CreateSession = s.connection.sessionID == ""
+	query.CreateSession = s.conn.sessionID == ""
 
 	return query
 }
@@ -106,13 +116,13 @@ func (s *stmt) buildParameters(args []driver.NamedValue) []bigquery.QueryParamet
 }
 
 func (s *stmt) buildConnectionProperties() []*bigquery.ConnectionProperty {
-	if s.connection.sessionID == "" {
+	if s.conn.sessionID == "" {
 		return nil
 	}
 	return []*bigquery.ConnectionProperty{
 		{
 			Key:   "session_id",
-			Value: s.connection.sessionID,
+			Value: s.conn.sessionID,
 		},
 	}
 }

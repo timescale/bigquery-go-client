@@ -18,6 +18,7 @@ var (
 	_ driver.ConnPrepareContext = (*conn)(nil)
 	_ driver.ExecerContext      = (*conn)(nil)
 	_ driver.QueryerContext     = (*conn)(nil)
+	_ driver.NamedValueChecker  = (*conn)(nil)
 )
 
 type conn struct {
@@ -25,6 +26,8 @@ type conn struct {
 	config    Config
 	sessionID string
 	closed    bool
+
+	jobStatsOpt *jobStatsOpt
 }
 
 func (c *conn) Ping(ctx context.Context) error {
@@ -46,33 +49,33 @@ func (c *conn) Prepare(query string) (driver.Stmt, error) {
 
 func (c *conn) PrepareContext(ctx context.Context, query string) (driver.Stmt, error) {
 	return &stmt{
-		connection: c,
-		query:      query,
+		conn:  c,
+		query: query,
 	}, nil
 }
 
 func (c *conn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
 	statement := &stmt{
-		connection: c,
-		query:      query,
+		conn:  c,
+		query: query,
 	}
 	return statement.QueryContext(ctx, args)
 }
 
 func (c *conn) ExecContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Result, error) {
 	statement := &stmt{
-		connection: c,
-		query:      query,
+		conn:  c,
+		query: query,
 	}
 	return statement.ExecContext(ctx, args)
 }
 
-func (c *conn) Close() error {
-	if c.closed {
-		return nil
+func (c *conn) CheckNamedValue(named *driver.NamedValue) error {
+	if opt, ok := named.Value.(jobStatsOpt); ok {
+		c.jobStatsOpt = &opt
+		return driver.ErrRemoveArgument
 	}
-	c.closed = true
-	return c.client.Close()
+	return driver.ErrSkip
 }
 
 func (c *conn) Begin() (driver.Tx, error) {
@@ -93,4 +96,12 @@ func (c *conn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver.Tx, e
 	}
 
 	return &tx{conn: c}, nil
+}
+
+func (c *conn) Close() error {
+	if c.closed {
+		return nil
+	}
+	c.closed = true
+	return c.client.Close()
 }
