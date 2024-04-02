@@ -66,9 +66,14 @@ func (s *stmt) iterator(ctx context.Context, args []driver.NamedValue) (*bigquer
 	}
 	s.conn.getJobOpt(job)
 
+	if query.DryRun {
+		return nil, nil
+	}
+
 	if sessionID := getSessionID(job); sessionID != "" {
 		s.conn.sessionID = sessionID
 	}
+
 	return job.Read(ctx)
 }
 

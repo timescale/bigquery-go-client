@@ -162,6 +162,10 @@ func (r *rows) Next(dest []driver.Value) error {
 }
 
 func (r *rows) schema() bigquery.Schema {
+	if r.iterator == nil {
+		return nil
+	}
+
 	// Must call next before we can access the schema.
 	// Cache the result/error for later.
 	if !r.nextCalled {
@@ -181,6 +185,10 @@ func (r *rows) prevOrNext() ([]bigquery.Value, error) {
 
 func (r *rows) next() ([]bigquery.Value, error) {
 	r.nextCalled = true
+
+	if r.iterator == nil {
+		return nil, io.EOF
+	}
 
 	var values []bigquery.Value
 	if err := r.iterator.Next(&values); err != nil {
