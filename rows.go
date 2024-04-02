@@ -141,10 +141,6 @@ func (r *rows) ColumnTypeScanType(index int) reflect.Type {
 }
 
 func (r *rows) Close() error {
-	var vals []bigquery.Value
-	for r.iterator.Next(&vals) == nil {
-		// Drain iterator
-	}
 	return nil
 }
 

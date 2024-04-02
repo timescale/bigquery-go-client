@@ -58,16 +58,13 @@ func (s *stmt) QueryContext(ctx context.Context, args []driver.NamedValue) (driv
 
 func (s *stmt) iterator(ctx context.Context, args []driver.NamedValue) (*bigquery.RowIterator, error) {
 	query := s.buildQuery(args)
+	s.conn.getQueryOpt(query)
 
 	job, err := query.Run(ctx)
 	if err != nil {
 		return nil, err
 	}
-
-	if s.conn.jobOpt != nil {
-		*(s.conn.jobOpt.job) = job
-		s.conn.jobOpt = &jobOpt{}
-	}
+	s.conn.getJobOpt(job)
 
 	if sessionID := getSessionID(job); sessionID != "" {
 		s.conn.sessionID = sessionID

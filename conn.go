@@ -26,8 +26,7 @@ type conn struct {
 	config    Config
 	sessionID string
 	closed    bool
-
-	jobOpt *jobOpt
+	options
 }
 
 func (c *conn) Ping(ctx context.Context) error {
@@ -68,14 +67,6 @@ func (c *conn) ExecContext(ctx context.Context, query string, args []driver.Name
 		query: query,
 	}
 	return statement.ExecContext(ctx, args)
-}
-
-func (c *conn) CheckNamedValue(named *driver.NamedValue) error {
-	if opt, ok := named.Value.(jobOpt); ok {
-		c.jobOpt = &opt
-		return driver.ErrRemoveArgument
-	}
-	return driver.ErrSkip
 }
 
 func (c *conn) Begin() (driver.Tx, error) {
