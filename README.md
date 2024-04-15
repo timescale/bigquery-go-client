@@ -13,8 +13,11 @@ A [database/sql](https://pkg.go.dev/database/sql) driver for BigQuery.
   is supported, and read-only transactions are not supported.
 - Compliant with the [database/sql](https://pkg.go.dev/database/sql) package
   interface. In particular, only valid [driver.Value](https://pkg.go.dev/database/sql/driver#Value)
-  types are returned, and the driver therefore behaves as documented in the
+  types are returned. The driver therefore behaves as documented in the
   [Rows.Scan](https://pkg.go.dev/database/sql#Rows.Scan) documentation.
+- Support for accessing the underlying [bigquery.Query](https://pkg.go.dev/cloud.google.com/go/bigquery#Query)
+  and [bigquery.Job](https://pkg.go.dev/cloud.google.com/go/bigquery#Job) types.
+  See [Accessing the Underlying Query/Job](#accessing-the-underlying-queryjob).
 
 ## DSN
 
@@ -146,3 +149,50 @@ To scan directly into a more complex type, create your own
 example, one that wraps one of the [civil](https://pkg.go.dev/cloud.google.com/go/civil)
 types, for `DATE`/`TIME`/`DATETIME`). Such types might be added to this package in
 the future.
+
+## Accessing the Underlying Query/Job
+
+This driver is a relatively thin wrapper around [cloud.google.com/go/bigquery](https://pkg.go.dev/cloud.google.com/go/bigquery),
+which offers a lot of functionality that cannot easily be exposed via the
+[database/sql](https://pkg.go.dev/database/sql) API. In particular, you may want
+to access the underlying [bigquery.Query](https://pkg.go.dev/cloud.google.com/go/bigquery#Query)
+or [bigquery.Job](https://pkg.go.dev/cloud.google.com/go/bigquery#Job) types
+(for example, to modify the query config before executing it, or to check the
+job statistics afterwards).
+
+This can be achieved via the [GetQuery](https://pkg.go.dev/github.com/popsql/bigquery-go-client#GetQuery)
+and [GetJob](https://pkg.go.dev/github.com/popsql/bigquery-go-client#GetJob)
+function types, respectively. These functions are callbacks that provide access
+to the underlying query/job when passed to Query/Exec as arguments. They will
+be called at the appropriate time in the query life cycle, providing access to
+the underlying types, which can modified or inspected as needed.
+
+For example, these functions can be used to execute a [dry
+run](https://cloud.google.com/bigquery/docs/running-queries#dry-run) and print
+out the estimated total bytes processed:
+
+```go
+package main
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+
+	"github.com/popsql/bigquery-go-client"
+)
+
+func main() {
+    db, _ := sql.Open("bigquery", "bigquery://PROJECT_ID/LOCATION/DATASET?credentialsFile=/path/to/credentials.json")
+
+	queryOpt := bigquery.GetQuery(func(q *bigquery.Query) {
+		q.DryRun = true
+	})
+
+	jobOpt := bigquery.GetJob(func(j *bigquery.Job) {
+		fmt.Printf("Total Bytes Processed: %d\n", j.LastStatus().Statistics.TotalBytesProcessed)
+	})
+
+	db.QueryContext(context.Background(), "SELECT * FROM my_table;", queryOpt, jobOpt)
+}
+```
