@@ -179,17 +179,18 @@ import (
 	"database/sql"
 	"fmt"
 
+	bq "cloud.google.com/go/bigquery"
 	"github.com/timescale/bigquery-go-client"
 )
 
 func main() {
-    db, _ := sql.Open("bigquery", "bigquery://PROJECT_ID/LOCATION/DATASET?credentialsFile=/path/to/credentials.json")
+	db, _ := sql.Open("bigquery", "bigquery://PROJECT_ID/LOCATION/DATASET?credentialsFile=/path/to/credentials.json")
 
-	queryOpt := bigquery.GetQuery(func(q *bigquery.Query) {
+	queryOpt := bigquery.GetQuery(func(q *bq.Query) {
 		q.DryRun = true
 	})
 
-	jobOpt := bigquery.GetJob(func(j *bigquery.Job) {
+	jobOpt := bigquery.GetJob(func(j *bq.Job) {
 		fmt.Printf("Total Bytes Processed: %d\n", j.LastStatus().Statistics.TotalBytesProcessed)
 	})
 
