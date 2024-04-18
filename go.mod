@@ -1,4 +1,4 @@
-module github.com/popsql/bigquery-go-client
+module github.com/timescale/bigquery-go-client
 
 go 1.22
 

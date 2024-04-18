@@ -67,7 +67,7 @@ package main
 import (
 	"database/sql"
 
-	_ "github.com/popsql/bigquery-go-client"
+	_ "github.com/timescale/bigquery-go-client"
 )
 
 var db, _ = sql.Open("bigquery", "bigquery://PROJECT_ID/LOCATION/DATASET?credentialsFile=/path/to/credentials.json")
@@ -75,7 +75,7 @@ var db, _ = sql.Open("bigquery", "bigquery://PROJECT_ID/LOCATION/DATASET?credent
 
 ## Connector
 
-The [NewConnector](https://pkg.go.dev/github.com/popsql/bigquery-go-client#NewConnector)
+The [NewConnector](https://pkg.go.dev/github.com/timescale/bigquery-go-client#NewConnector)
 method can be used to create a [driver.Connector](https://pkg.go.dev/database/sql/driver#Connector)
 instance which can be passed to [sql.OpenDB](https://pkg.go.dev/database/sql#OpenDB).
 This provides a more flexible and powerful way of opening a [sql.DB](https://pkg.go.dev/database/sql#DB)
@@ -90,7 +90,7 @@ package main
 import (
 	"database/sql"
 
-	bigquery "github.com/popsql/bigquery-go-client"
+	bigquery "github.com/timescale/bigquery-go-client"
 	"google.golang.org/api/option"
 )
 
@@ -160,8 +160,8 @@ or [bigquery.Job](https://pkg.go.dev/cloud.google.com/go/bigquery#Job) types
 (for example, to modify the query config before executing it, or to check the
 job statistics afterwards).
 
-This can be achieved via the [GetQuery](https://pkg.go.dev/github.com/popsql/bigquery-go-client#GetQuery)
-and [GetJob](https://pkg.go.dev/github.com/popsql/bigquery-go-client#GetJob)
+This can be achieved via the [GetQuery](https://pkg.go.dev/github.com/timescale/bigquery-go-client#GetQuery)
+and [GetJob](https://pkg.go.dev/github.com/timescale/bigquery-go-client#GetJob)
 function types, respectively. These functions are callbacks that provide access
 to the underlying query/job when passed to Query/Exec as arguments. They will
 be called at the appropriate time in the query life cycle, providing access to
@@ -179,7 +179,7 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/popsql/bigquery-go-client"
+	"github.com/timescale/bigquery-go-client"
 )
 
 func main() {
