@@ -36,6 +36,10 @@ func (c *connector) Connect(ctx context.Context) (driver.Conn, error) {
 	}
 	client.Location = c.config.Location
 
+	if err := client.EnableStorageReadClient(context.Background(), c.config.Options...); err != nil {
+		return nil, err
+	}
+
 	return &conn{
 		client: client,
 		config: c.config,
