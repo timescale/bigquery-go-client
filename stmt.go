@@ -70,9 +70,7 @@ func (s *stmt) iterator(ctx context.Context, args []driver.NamedValue) (*bigquer
 
 	job, err := query.Run(ctx)
 	if err != nil {
-		if sessionError(s.conn.sessionID, err) {
-			s.conn.invalid = true
-		}
+		s.checkSessionError(err)
 		return nil, err
 	}
 	s.conn.getJobOpt(job)
@@ -85,22 +83,12 @@ func (s *stmt) iterator(ctx context.Context, args []driver.NamedValue) (*bigquer
 		s.conn.sessionID = sessionID
 	}
 
-	return job.Read(ctx)
-}
-
-func sessionError(sessionID string, err error) bool {
-	var bqErr *googleapi.Error
-	if !errors.As(err, &bqErr) || bqErr.Code != http.StatusBadRequest {
-		return false
+	iterator, err := job.Read(ctx)
+	if err != nil {
+		s.checkSessionError(err)
+		return nil, err
 	}
-
-	sessionBrokenMsg := fmt.Sprintf("Session %s has expired and is no longer available.", sessionID)
-	for _, errItem := range bqErr.Errors {
-		if errItem.Reason == "resourcesExceeded" && errItem.Message == sessionBrokenMsg {
-			return true
-		}
-	}
-	return false
+	return iterator, nil
 }
 
 func getSessionID(job *bigquery.Job) string {
@@ -148,4 +136,25 @@ func (s *stmt) buildConnectionProperties() []*bigquery.ConnectionProperty {
 			Value: s.conn.sessionID,
 		},
 	}
+}
+
+func (s *stmt) checkSessionError(err error) {
+	if sessionError(s.conn.sessionID, err) {
+		s.conn.invalid = true
+	}
+}
+
+func sessionError(sessionID string, err error) bool {
+	var bqErr *googleapi.Error
+	if !errors.As(err, &bqErr) || bqErr.Code != http.StatusBadRequest {
+		return false
+	}
+
+	sessionBrokenMsg := fmt.Sprintf("Session %s has expired and is no longer available.", sessionID)
+	for _, errItem := range bqErr.Errors {
+		if errItem.Reason == "resourcesExceeded" && errItem.Message == sessionBrokenMsg {
+			return true
+		}
+	}
+	return false
 }
