@@ -14,6 +14,7 @@ var (
 	_ driver.Conn               = (*conn)(nil)
 	_ driver.Pinger             = (*conn)(nil)
 	_ driver.Validator          = (*conn)(nil)
+	_ driver.SessionResetter    = (*conn)(nil)
 	_ driver.ConnBeginTx        = (*conn)(nil)
 	_ driver.ConnPrepareContext = (*conn)(nil)
 	_ driver.ExecerContext      = (*conn)(nil)
@@ -39,7 +40,14 @@ func (c *conn) Ping(ctx context.Context) error {
 func (c *conn) IsValid() bool {
 	// TODO: Return false if session has ended
 	// (can connection be broken in any other way?)
-	return true
+	return !c.closed
+}
+
+func (c *conn) ResetSession(ctx context.Context) error {
+	if !c.IsValid() {
+		return driver.ErrBadConn
+	}
+	return nil
 }
 
 func (c *conn) Prepare(query string) (driver.Stmt, error) {
@@ -82,7 +90,7 @@ func (c *conn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver.Tx, e
 		return nil, errors.New("read-only transactions not supported")
 	}
 
-	if _, err := c.ExecContext(ctx, "BEGIN TRANSACTION", nil); err != nil {
+	if _, err := c.ExecContext(ctx, "BEGIN TRANSACTION;", nil); err != nil {
 		return nil, err
 	}
 
@@ -94,5 +102,30 @@ func (c *conn) Close() error {
 		return nil
 	}
 	c.closed = true
-	return c.client.Close()
+
+	var errs []error
+	if err := c.abortSession(context.Background()); err != nil {
+		errs = append(errs, err)
+	}
+
+	if err := c.client.Close(); err != nil {
+		errs = append(errs, err)
+	}
+
+	return errors.Join(errs...)
+}
+
+func (c *conn) abortSession(ctx context.Context) error {
+	if c.sessionID == "" {
+		return nil
+	}
+
+	if _, err := c.ExecContext(
+		context.Background(), "CALL BQ.ABORT_SESSION();", nil,
+	); err != nil {
+		return err
+	}
+
+	c.sessionID = ""
+	return nil
 }
