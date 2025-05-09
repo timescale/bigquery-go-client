@@ -3,8 +3,12 @@ package bigquery
 import (
 	"context"
 	"database/sql/driver"
+	"errors"
+	"fmt"
+	"net/http"
 
 	"cloud.google.com/go/bigquery"
+	"google.golang.org/api/googleapi"
 )
 
 var (
@@ -57,11 +61,16 @@ func (s *stmt) QueryContext(ctx context.Context, args []driver.NamedValue) (driv
 }
 
 func (s *stmt) iterator(ctx context.Context, args []driver.NamedValue) (*bigquery.RowIterator, error) {
+	if s.conn.invalid {
+		return nil, driver.ErrBadConn
+	}
+
 	query := s.buildQuery(args)
 	s.conn.getQueryOpt(query)
 
 	job, err := query.Run(ctx)
 	if err != nil {
+		s.checkSessionError(err)
 		return nil, err
 	}
 	s.conn.getJobOpt(job)
@@ -74,7 +83,12 @@ func (s *stmt) iterator(ctx context.Context, args []driver.NamedValue) (*bigquer
 		s.conn.sessionID = sessionID
 	}
 
-	return job.Read(ctx)
+	iterator, err := job.Read(ctx)
+	if err != nil {
+		s.checkSessionError(err)
+		return nil, err
+	}
+	return iterator, nil
 }
 
 func getSessionID(job *bigquery.Job) string {
@@ -122,4 +136,25 @@ func (s *stmt) buildConnectionProperties() []*bigquery.ConnectionProperty {
 			Value: s.conn.sessionID,
 		},
 	}
+}
+
+func (s *stmt) checkSessionError(err error) {
+	if sessionError(s.conn.sessionID, err) {
+		s.conn.invalid = true
+	}
+}
+
+func sessionError(sessionID string, err error) bool {
+	var bqErr *googleapi.Error
+	if !errors.As(err, &bqErr) || bqErr.Code != http.StatusBadRequest {
+		return false
+	}
+
+	sessionBrokenMsg := fmt.Sprintf("Session %s has expired and is no longer available.", sessionID)
+	for _, errItem := range bqErr.Errors {
+		if errItem.Reason == "resourcesExceeded" && errItem.Message == sessionBrokenMsg {
+			return true
+		}
+	}
+	return false
 }
