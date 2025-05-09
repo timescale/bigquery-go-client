@@ -27,6 +27,7 @@ type conn struct {
 	config    Config
 	sessionID string
 	closed    bool
+	invalid   bool
 	options
 }
 
@@ -38,9 +39,7 @@ func (c *conn) Ping(ctx context.Context) error {
 }
 
 func (c *conn) IsValid() bool {
-	// TODO: Return false if session has ended
-	// (can connection be broken in any other way?)
-	return !c.closed
+	return !c.invalid && !c.closed
 }
 
 func (c *conn) ResetSession(ctx context.Context) error {
