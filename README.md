@@ -150,6 +150,16 @@ example, one that wraps one of the [civil](https://pkg.go.dev/cloud.google.com/g
 types, for `DATE`/`TIME`/`DATETIME`). Such types might be added to this package in
 the future.
 
+## Query Parameters
+
+Query parameters can be passed positionally (`?`) or by name (`@name`, via
+[sql.Named](https://pkg.go.dev/database/sql#Named)). In addition to the
+standard [driver.Value](https://pkg.go.dev/database/sql/driver#Value) types and
+[driver.Valuer](https://pkg.go.dev/database/sql/driver#Valuer) implementations,
+any type supported by [bigquery.QueryParameter](https://pkg.go.dev/cloud.google.com/go/bigquery#QueryParameter)
+can be passed (e.g. [civil](https://pkg.go.dev/cloud.google.com/go/civil)
+types, `*big.Rat`, slices, and structs).
+
 ## Accessing the Underlying Query/Job
 
 This driver is a relatively thin wrapper around [cloud.google.com/go/bigquery](https://pkg.go.dev/cloud.google.com/go/bigquery),
