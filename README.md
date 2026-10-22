@@ -44,10 +44,16 @@ Options can be passed as key/value pairs in the query string. Supported options
 include:
 
 - `apiKey` - API Key to be used for authentication.
-- `credentials` - Base64-encoded service account or refresh token credentials
-  JSON object.
-- `credentialsFile` - Path to a file containing a service account or refresh
-  token credentials JSON object.
+- `credentials` - Unpadded base64url-encoded credentials JSON object. Requires
+  `credentialsType`.
+- `credentialsFile` - Path to a file containing a credentials JSON object.
+  Requires `credentialsType`.
+- `credentialsType` - The type of the `credentials`/`credentialsFile` JSON
+  object: one of `service_account`, `authorized_user`,
+  `impersonated_service_account`, or `external_account` (see
+  [option.CredentialsType](https://pkg.go.dev/google.golang.org/api/option#CredentialsType)).
+  Note that credentials should not be accepted from untrusted sources without
+  validation (see [Validate credential configurations from external sources](https://cloud.google.com/docs/authentication/external/externally-sourced-credentials)).
 - `scopes` - Overrides the default OAuth2 scopes to be used.
 - `endpoint` - Overrides the default endpoint to be used.
 - `userAgent` - Sets the User-Agent that is used when making requests to the
@@ -70,7 +76,7 @@ import (
 	_ "github.com/timescale/bigquery-go-client"
 )
 
-var db, _ = sql.Open("bigquery", "bigquery://PROJECT_ID/LOCATION/DATASET?credentialsFile=/path/to/credentials.json")
+var db, _ = sql.Open("bigquery", "bigquery://PROJECT_ID/LOCATION/DATASET?credentialsFile=/path/to/credentials.json&credentialsType=service_account")
 ```
 
 ## Connector
@@ -99,7 +105,7 @@ var db = sql.OpenDB(bigquery.NewConnector(bigquery.Config{
 	Dataset:   "DATASET",
 	Location:  "LOCATION",
 	Options: []option.ClientOption{
-		option.WithCredentialsFile("/path/to/credentials.json"),
+		option.WithAuthCredentialsFile(option.ServiceAccount, "/path/to/credentials.json"),
 	},
 }))
 ```
@@ -194,7 +200,7 @@ import (
 )
 
 func main() {
-	db, _ := sql.Open("bigquery", "bigquery://PROJECT_ID/LOCATION/DATASET?credentialsFile=/path/to/credentials.json")
+	db, _ := sql.Open("bigquery", "bigquery://PROJECT_ID/LOCATION/DATASET?credentialsFile=/path/to/credentials.json&credentialsType=service_account")
 
 	queryOpt := bigquery.GetQuery(func(q *bq.Query) {
 		q.DryRun = true
