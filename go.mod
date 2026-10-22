@@ -1,6 +1,6 @@
 module github.com/timescale/bigquery-go-client
 
-go 1.26.0
+go 1.27.3
 
 require (
 	cloud.google.com/go v0.123.0
