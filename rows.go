@@ -211,6 +211,10 @@ func convertValue(field *bigquery.FieldSchema, value bigquery.Value) (driver.Val
 		return nil, err
 	}
 
+	if raw, ok := val.(json.RawMessage); ok {
+		return []byte(raw), nil
+	}
+
 	if driver.IsValue(val) {
 		return val, nil
 	}
@@ -262,7 +266,7 @@ func convertUnitType(field *bigquery.FieldSchema, value bigquery.Value) (any, er
 	case bigquery.RangeFieldType:
 		return convertRangeType(field, value)
 	case bigquery.JSONFieldType:
-		return convertBytesType[string](field, value)
+		return convertJSONType(field, value)
 	case bigquery.RecordFieldType:
 		return convertRecordType(field, value)
 	default:
@@ -418,20 +422,18 @@ func convertRationalType(field *bigquery.FieldSchema, value bigquery.Value, toSt
 	}
 }
 
-type byteish interface {
-	~[]byte | ~string
-}
-
-func convertBytesType[T byteish](field *bigquery.FieldSchema, value bigquery.Value) (any, error) {
+// Returns JSON as a json.RawMessage so that it's embedded as-is (rather than
+// base64-encoded) when nested inside a marshalled ARRAY or STRUCT.
+func convertJSONType(field *bigquery.FieldSchema, value bigquery.Value) (any, error) {
 	switch val := value.(type) {
 	case nil:
 		return nil, nil
-	case T:
-		return []byte(val), nil
+	case string:
+		return json.RawMessage(val), nil
 	default:
 		return nil, &unexpectedTypeError{
 			FieldType: field.Type,
-			Expected:  reflect.TypeFor[T](),
+			Expected:  reflect.TypeFor[string](),
 			Actual:    val,
 		}
 	}
