@@ -20,5 +20,9 @@ func (r *result) LastInsertId() (int64, error) {
 }
 
 func (r *result) RowsAffected() (int64, error) {
+	// Dry runs have no iterator.
+	if r.iterator == nil {
+		return 0, nil
+	}
 	return int64(r.iterator.TotalRows), nil
 }
