@@ -112,6 +112,11 @@ var (
 func (r *rows) ColumnTypeScanType(index int) reflect.Type {
 	field := r.schema()[index]
 
+	// ARRAY values are marshalled to JSON.
+	if field.Repeated {
+		return bytesPtrType
+	}
+
 	switch field.Type {
 	case bigquery.IntegerFieldType:
 		return int64PtrType
