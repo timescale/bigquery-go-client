@@ -61,6 +61,8 @@ func (s *stmt) QueryContext(ctx context.Context, args []driver.NamedValue) (driv
 }
 
 func (s *stmt) iterator(ctx context.Context, args []driver.NamedValue) (*bigquery.RowIterator, error) {
+	defer s.conn.options.reset()
+
 	if s.conn.invalid {
 		return nil, driver.ErrBadConn
 	}

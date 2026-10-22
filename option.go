@@ -38,13 +38,17 @@ func (o *options) CheckNamedValue(named *driver.NamedValue) error {
 func (o *options) getQueryOpt(query *bigquery.Query) {
 	if o.getQuery != nil {
 		o.getQuery(query)
-		o.getQuery = nil
 	}
 }
 
 func (o *options) getJobOpt(job *bigquery.Job) {
 	if o.getJob != nil {
 		o.getJob(job)
-		o.getJob = nil
 	}
+}
+
+// Options are set on the conn by CheckNamedValue, so they must be cleared after
+// each query (even a failed one) to avoid leaking into later queries.
+func (o *options) reset() {
+	*o = options{}
 }
