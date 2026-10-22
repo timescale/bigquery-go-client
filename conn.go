@@ -115,13 +115,12 @@ func (c *conn) Close() error {
 }
 
 func (c *conn) abortSession(ctx context.Context) error {
-	if c.sessionID == "" {
+	// An invalid conn's session has already expired, so there's nothing to abort.
+	if c.sessionID == "" || c.invalid {
 		return nil
 	}
 
-	if _, err := c.ExecContext(
-		context.Background(), "CALL BQ.ABORT_SESSION();", nil,
-	); err != nil {
+	if _, err := c.ExecContext(ctx, "CALL BQ.ABORT_SESSION();", nil); err != nil {
 		return err
 	}
 
