@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"time"
 
 	"cloud.google.com/go/bigquery"
 	"google.golang.org/api/googleapi"
@@ -87,10 +88,26 @@ func (s *stmt) iterator(ctx context.Context, args []driver.NamedValue) (*bigquer
 
 	iterator, err := job.Read(ctx)
 	if err != nil {
+		if ctx.Err() != nil {
+			return nil, errors.Join(err, cancelJob(ctx, job))
+		}
 		s.checkSessionError(err)
 		return nil, err
 	}
 	return iterator, nil
+}
+
+const cancelTimeout = 10 * time.Second
+
+// Read stops waiting when ctx is done, but the job keeps running (and costing
+// money) unless it is explicitly cancelled.
+func cancelJob(ctx context.Context, job *bigquery.Job) error {
+	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cancelTimeout)
+	defer cancel()
+	if err := job.Cancel(ctx); err != nil {
+		return fmt.Errorf("error cancelling job: %w", err)
+	}
+	return nil
 }
 
 func getSessionID(job *bigquery.Job) string {
