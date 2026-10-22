@@ -255,7 +255,7 @@ func convertUnitType(field *bigquery.FieldSchema, value bigquery.Value) (any, er
 	case bigquery.IntervalFieldType:
 		return convertStringerType[*bigquery.IntervalValue](field, value)
 	case bigquery.RangeFieldType:
-		return convertBasicType[string](field, value)
+		return convertRangeType(field, value)
 	case bigquery.JSONFieldType:
 		return convertBytesType[string](field, value)
 	case bigquery.RecordFieldType:
@@ -338,6 +338,51 @@ func convertStringerType[T fmt.Stringer](field *bigquery.FieldSchema, value bigq
 		return nil, &unexpectedTypeError{
 			FieldType: field.Type,
 			Expected:  reflect.TypeFor[T](),
+			Actual:    val,
+		}
+	}
+}
+
+// Formats a RANGE using the same "[start, end)" representation as the
+// BigQuery API, with UNBOUNDED for missing bounds.
+func convertRangeType(field *bigquery.FieldSchema, value bigquery.Value) (any, error) {
+	switch val := value.(type) {
+	case nil:
+		return nil, nil
+	case *bigquery.RangeValue:
+		if val == nil {
+			return nil, nil
+		}
+		start, err := rangeBoundString(field, val.Start)
+		if err != nil {
+			return nil, err
+		}
+		end, err := rangeBoundString(field, val.End)
+		if err != nil {
+			return nil, err
+		}
+		return fmt.Sprintf("[%s, %s)", start, end), nil
+	default:
+		return nil, &unexpectedTypeError{
+			FieldType: field.Type,
+			Expected:  reflect.TypeFor[*bigquery.RangeValue](),
+			Actual:    val,
+		}
+	}
+}
+
+func rangeBoundString(field *bigquery.FieldSchema, value bigquery.Value) (string, error) {
+	switch val := value.(type) {
+	case nil:
+		return "UNBOUNDED", nil
+	case time.Time:
+		return val.Format(time.RFC3339Nano), nil
+	case fmt.Stringer:
+		return val.String(), nil
+	default:
+		return "", &unexpectedTypeError{
+			FieldType: field.Type,
+			Expected:  reflect.TypeFor[fmt.Stringer](),
 			Actual:    val,
 		}
 	}
