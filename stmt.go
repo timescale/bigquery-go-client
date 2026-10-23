@@ -39,19 +39,31 @@ func (s *stmt) Query(args []driver.Value) (driver.Rows, error) {
 	return nil, driver.ErrSkip
 }
 
+// ExecContext waits for the job's final status (rather than reading its
+// results) so that RowsAffected doesn't need to make an API call.
 func (s *stmt) ExecContext(ctx context.Context, args []driver.NamedValue) (driver.Result, error) {
-	iterator, err := s.iterator(ctx, args)
+	job, err := s.run(ctx, args)
 	if err != nil {
 		return nil, err
 	}
+	// Dry run.
+	if job == nil {
+		return &result{}, nil
+	}
 
-	return &result{
-		iterator: iterator,
-	}, nil
+	status, err := job.Wait(ctx)
+	if err != nil {
+		return nil, s.jobError(ctx, job, err)
+	}
+	if err := status.Err(); err != nil {
+		s.checkSessionError(err)
+		return nil, err
+	}
+	return newResult(status), nil
 }
 
 func (s *stmt) QueryContext(ctx context.Context, args []driver.NamedValue) (driver.Rows, error) {
-	iterator, err := s.iterator(ctx, args)
+	iterator, err := s.read(ctx, args)
 	if err != nil {
 		return nil, err
 	}
@@ -61,7 +73,8 @@ func (s *stmt) QueryContext(ctx context.Context, args []driver.NamedValue) (driv
 	}, nil
 }
 
-func (s *stmt) iterator(ctx context.Context, args []driver.NamedValue) (*bigquery.RowIterator, error) {
+// Starts the query, returning a nil job for dry runs.
+func (s *stmt) run(ctx context.Context, args []driver.NamedValue) (*bigquery.Job, error) {
 	defer s.conn.options.reset()
 
 	if s.conn.invalid {
@@ -85,21 +98,35 @@ func (s *stmt) iterator(ctx context.Context, args []driver.NamedValue) (*bigquer
 	if sessionID := getSessionID(job); sessionID != "" {
 		s.conn.sessionID = sessionID
 	}
+	return job, nil
+}
+
+// Returns a nil iterator for dry runs.
+func (s *stmt) read(ctx context.Context, args []driver.NamedValue) (*bigquery.RowIterator, error) {
+	job, err := s.run(ctx, args)
+	if err != nil || job == nil {
+		return nil, err
+	}
 
 	iterator, err := job.Read(ctx)
 	if err != nil {
-		if ctx.Err() != nil {
-			return nil, errors.Join(err, cancelJob(ctx, job))
-		}
-		s.checkSessionError(err)
-		return nil, err
+		return nil, s.jobError(ctx, job, err)
 	}
 	return iterator, nil
 }
 
+// Handles an error from waiting for a running job.
+func (s *stmt) jobError(ctx context.Context, job *bigquery.Job, err error) error {
+	if ctx.Err() != nil {
+		return errors.Join(err, cancelJob(ctx, job))
+	}
+	s.checkSessionError(err)
+	return err
+}
+
 const cancelTimeout = 10 * time.Second
 
-// Read stops waiting when ctx is done, but the job keeps running (and costing
+// Read/Wait stop waiting when ctx is done, but the job keeps running (and costing
 // money) unless it is explicitly cancelled.
 func cancelJob(ctx context.Context, job *bigquery.Job) error {
 	ctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), cancelTimeout)

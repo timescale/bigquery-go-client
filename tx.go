@@ -14,11 +14,9 @@ type tx struct {
 }
 
 func (t *tx) Commit() error {
-	_, err := t.conn.ExecContext(context.Background(), "COMMIT TRANSACTION;", nil)
-	return err
+	return t.conn.exec(context.Background(), "COMMIT TRANSACTION;")
 }
 
 func (t *tx) Rollback() error {
-	_, err := t.conn.ExecContext(context.Background(), "ROLLBACK TRANSACTION;", nil)
-	return err
+	return t.conn.exec(context.Background(), "ROLLBACK TRANSACTION;")
 }
