@@ -2,6 +2,7 @@ package bigquery
 
 import (
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net/url"
 	"strings"
@@ -62,6 +63,8 @@ func parseLocationDataset(url *url.URL) (string, string, error) {
 	}
 }
 
+var errCredentialsTypeRequired = errors.New("credentialsType is required with credentials or credentialsFile")
+
 func parseOptions(url *url.URL) ([]option.ClientOption, error) {
 	query := url.Query()
 
@@ -69,15 +72,22 @@ func parseOptions(url *url.URL) ([]option.ClientOption, error) {
 	if apiKey := query.Get("apiKey"); apiKey != "" {
 		options = append(options, option.WithAPIKey(apiKey))
 	}
+	credentialsType := option.CredentialsType(query.Get("credentialsType"))
 	if credentials := query.Get("credentials"); credentials != "" {
+		if credentialsType == "" {
+			return nil, errCredentialsTypeRequired
+		}
 		decoded, err := base64.RawURLEncoding.DecodeString(credentials)
 		if err != nil {
 			return nil, err
 		}
-		options = append(options, option.WithCredentialsJSON([]byte(decoded)))
+		options = append(options, option.WithAuthCredentialsJSON(credentialsType, decoded))
 	}
 	if credentialsFile := query.Get("credentialsFile"); credentialsFile != "" {
-		options = append(options, option.WithCredentialsFile(credentialsFile))
+		if credentialsType == "" {
+			return nil, errCredentialsTypeRequired
+		}
+		options = append(options, option.WithAuthCredentialsFile(credentialsType, credentialsFile))
 	}
 	if scopes := query["scopes"]; scopes != nil {
 		options = append(options, option.WithScopes(scopes...))

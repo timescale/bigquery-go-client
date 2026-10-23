@@ -112,6 +112,11 @@ var (
 func (r *rows) ColumnTypeScanType(index int) reflect.Type {
 	field := r.schema()[index]
 
+	// ARRAY values are marshalled to JSON.
+	if field.Repeated {
+		return bytesPtrType
+	}
+
 	switch field.Type {
 	case bigquery.IntegerFieldType:
 		return int64PtrType
@@ -206,6 +211,10 @@ func convertValue(field *bigquery.FieldSchema, value bigquery.Value) (driver.Val
 		return nil, err
 	}
 
+	if raw, ok := val.(json.RawMessage); ok {
+		return []byte(raw), nil
+	}
+
 	if driver.IsValue(val) {
 		return val, nil
 	}
@@ -255,9 +264,9 @@ func convertUnitType(field *bigquery.FieldSchema, value bigquery.Value) (any, er
 	case bigquery.IntervalFieldType:
 		return convertStringerType[*bigquery.IntervalValue](field, value)
 	case bigquery.RangeFieldType:
-		return convertBasicType[string](field, value)
+		return convertRangeType(field, value)
 	case bigquery.JSONFieldType:
-		return convertBytesType[string](field, value)
+		return convertJSONType(field, value)
 	case bigquery.RecordFieldType:
 		return convertRecordType(field, value)
 	default:
@@ -343,6 +352,51 @@ func convertStringerType[T fmt.Stringer](field *bigquery.FieldSchema, value bigq
 	}
 }
 
+// Formats a RANGE using the same "[start, end)" representation as the
+// BigQuery API, with UNBOUNDED for missing bounds.
+func convertRangeType(field *bigquery.FieldSchema, value bigquery.Value) (any, error) {
+	switch val := value.(type) {
+	case nil:
+		return nil, nil
+	case *bigquery.RangeValue:
+		if val == nil {
+			return nil, nil
+		}
+		start, err := rangeBoundString(field, val.Start)
+		if err != nil {
+			return nil, err
+		}
+		end, err := rangeBoundString(field, val.End)
+		if err != nil {
+			return nil, err
+		}
+		return fmt.Sprintf("[%s, %s)", start, end), nil
+	default:
+		return nil, &unexpectedTypeError{
+			FieldType: field.Type,
+			Expected:  reflect.TypeFor[*bigquery.RangeValue](),
+			Actual:    val,
+		}
+	}
+}
+
+func rangeBoundString(field *bigquery.FieldSchema, value bigquery.Value) (string, error) {
+	switch val := value.(type) {
+	case nil:
+		return "UNBOUNDED", nil
+	case time.Time:
+		return val.Format(time.RFC3339Nano), nil
+	case fmt.Stringer:
+		return val.String(), nil
+	default:
+		return "", &unexpectedTypeError{
+			FieldType: field.Type,
+			Expected:  reflect.TypeFor[fmt.Stringer](),
+			Actual:    val,
+		}
+	}
+}
+
 type ratToStr func(*big.Rat) string
 
 func convertRationalType(field *bigquery.FieldSchema, value bigquery.Value, toStr ratToStr) (any, error) {
@@ -368,20 +422,18 @@ func convertRationalType(field *bigquery.FieldSchema, value bigquery.Value, toSt
 	}
 }
 
-type byteish interface {
-	~[]byte | ~string
-}
-
-func convertBytesType[T byteish](field *bigquery.FieldSchema, value bigquery.Value) (any, error) {
+// Returns JSON as a json.RawMessage so that it's embedded as-is (rather than
+// base64-encoded) when nested inside a marshalled ARRAY or STRUCT.
+func convertJSONType(field *bigquery.FieldSchema, value bigquery.Value) (any, error) {
 	switch val := value.(type) {
 	case nil:
 		return nil, nil
-	case T:
-		return []byte(val), nil
+	case string:
+		return json.RawMessage(val), nil
 	default:
 		return nil, &unexpectedTypeError{
 			FieldType: field.Type,
-			Expected:  reflect.TypeFor[T](),
+			Expected:  reflect.TypeFor[string](),
 			Actual:    val,
 		}
 	}

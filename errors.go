@@ -12,7 +12,11 @@ type invalidConnStrError struct {
 }
 
 func (e *invalidConnStrError) Error() string {
-	return fmt.Sprintf("invalid connection string: %w", e.Err)
+	return fmt.Sprintf("invalid connection string: %v", e.Err)
+}
+
+func (e *invalidConnStrError) Unwrap() error {
+	return e.Err
 }
 
 type invalidFieldTypeError struct {
