@@ -42,6 +42,12 @@ func (s *stmt) Query(args []driver.Value) (driver.Rows, error) {
 // ExecContext waits for the job's final status (rather than reading its
 // results) so that RowsAffected doesn't need to make an API call.
 func (s *stmt) ExecContext(ctx context.Context, args []driver.NamedValue) (driver.Result, error) {
+	defer s.conn.options.reset()
+
+	if s.conn.broken {
+		return nil, driver.ErrBadConn
+	}
+
 	job, err := s.run(ctx, args)
 	if err != nil {
 		return nil, err
@@ -63,6 +69,12 @@ func (s *stmt) ExecContext(ctx context.Context, args []driver.NamedValue) (drive
 }
 
 func (s *stmt) QueryContext(ctx context.Context, args []driver.NamedValue) (driver.Rows, error) {
+	defer s.conn.options.reset()
+
+	if s.conn.broken {
+		return nil, driver.ErrBadConn
+	}
+
 	iterator, err := s.read(ctx, args)
 	if err != nil {
 		return nil, err
@@ -75,8 +87,6 @@ func (s *stmt) QueryContext(ctx context.Context, args []driver.NamedValue) (driv
 
 // Starts the query, returning a nil job for dry runs.
 func (s *stmt) run(ctx context.Context, args []driver.NamedValue) (*bigquery.Job, error) {
-	defer s.conn.options.reset()
-
 	if s.conn.invalid {
 		return nil, driver.ErrBadConn
 	}

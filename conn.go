@@ -29,6 +29,12 @@ type conn struct {
 	closed    bool
 	invalid   bool
 	options
+
+	// broken is set when BEGIN/COMMIT/ROLLBACK fails, since the session may be
+	// left in an open transaction. Unlike an invalid conn, its session still
+	// exists, so only user statements are refused (the session is still aborted
+	// when the conn is closed).
+	broken bool
 }
 
 func (c *conn) Ping(ctx context.Context) error {
@@ -39,7 +45,7 @@ func (c *conn) Ping(ctx context.Context) error {
 }
 
 func (c *conn) IsValid() bool {
-	return !c.invalid && !c.closed
+	return !c.invalid && !c.broken && !c.closed
 }
 
 func (c *conn) ResetSession(ctx context.Context) error {
@@ -89,7 +95,12 @@ func (c *conn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver.Tx, e
 		return nil, errors.New("read-only transactions not supported")
 	}
 
+	if c.broken {
+		return nil, driver.ErrBadConn
+	}
+
 	if err := c.exec(ctx, "BEGIN TRANSACTION;"); err != nil {
+		c.broken = true
 		return nil, err
 	}
 
