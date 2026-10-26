@@ -29,6 +29,12 @@ type conn struct {
 	closed    bool
 	invalid   bool
 	options
+
+	// broken is set when BEGIN/COMMIT/ROLLBACK fails, since the session may be
+	// left in an open transaction. Unlike an invalid conn, its session still
+	// exists, so only user statements are refused (the session is still aborted
+	// when the conn is closed).
+	broken bool
 }
 
 func (c *conn) Ping(ctx context.Context) error {
@@ -39,7 +45,7 @@ func (c *conn) Ping(ctx context.Context) error {
 }
 
 func (c *conn) IsValid() bool {
-	return !c.invalid && !c.closed
+	return !c.invalid && !c.broken && !c.closed
 }
 
 func (c *conn) ResetSession(ctx context.Context) error {
@@ -89,7 +95,12 @@ func (c *conn) BeginTx(ctx context.Context, opts driver.TxOptions) (driver.Tx, e
 		return nil, errors.New("read-only transactions not supported")
 	}
 
-	if _, err := c.ExecContext(ctx, "BEGIN TRANSACTION;", nil); err != nil {
+	if c.broken {
+		return nil, driver.ErrBadConn
+	}
+
+	if err := c.exec(ctx, "BEGIN TRANSACTION;"); err != nil {
+		c.broken = true
 		return nil, err
 	}
 
@@ -115,16 +126,29 @@ func (c *conn) Close() error {
 }
 
 func (c *conn) abortSession(ctx context.Context) error {
-	if c.sessionID == "" {
+	// An invalid conn's session has already expired, so there's nothing to abort.
+	if c.sessionID == "" || c.invalid {
 		return nil
 	}
 
-	if _, err := c.ExecContext(
-		context.Background(), "CALL BQ.ABORT_SESSION();", nil,
-	); err != nil {
+	if err := c.exec(ctx, "CALL BQ.ABORT_SESSION();"); err != nil {
 		return err
 	}
 
 	c.sessionID = ""
 	return nil
+}
+
+// exec runs a statement issued internally by the driver. Unlike ExecContext, it
+// doesn't make an extra API call to fetch the job's statistics. It uses read
+// because job.Read is the cheapest way to wait for a query to finish (Wait does
+// the same, plus a status call), and no rows are fetched unless the returned
+// iterator is advanced.
+func (c *conn) exec(ctx context.Context, query string) error {
+	statement := &stmt{
+		conn:  c,
+		query: query,
+	}
+	_, err := statement.read(ctx, nil)
+	return err
 }

@@ -14,11 +14,17 @@ type tx struct {
 }
 
 func (t *tx) Commit() error {
-	_, err := t.conn.ExecContext(context.Background(), "COMMIT TRANSACTION;", nil)
-	return err
+	if err := t.conn.exec(context.Background(), "COMMIT TRANSACTION;"); err != nil {
+		t.conn.broken = true
+		return err
+	}
+	return nil
 }
 
 func (t *tx) Rollback() error {
-	_, err := t.conn.ExecContext(context.Background(), "ROLLBACK TRANSACTION;", nil)
-	return err
+	if err := t.conn.exec(context.Background(), "ROLLBACK TRANSACTION;"); err != nil {
+		t.conn.broken = true
+		return err
+	}
+	return nil
 }
