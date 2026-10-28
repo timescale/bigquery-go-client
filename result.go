@@ -7,9 +7,7 @@ import (
 	"cloud.google.com/go/bigquery"
 )
 
-var (
-	_ driver.Result = (*result)(nil)
-)
+var _ driver.Result = (*result)(nil)
 
 type result struct {
 	rowsAffected int64

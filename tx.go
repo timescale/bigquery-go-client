@@ -5,9 +5,7 @@ import (
 	"database/sql/driver"
 )
 
-var (
-	_ driver.Tx = (*tx)(nil)
-)
+var _ driver.Tx = (*tx)(nil)
 
 type tx struct {
 	conn *conn
