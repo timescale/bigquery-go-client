@@ -13,9 +13,25 @@
       "groupName": "Go modules"
     },
     {
+      "description": "Lint/security tools from go.mod's tool block. New versions can flag or reformat code and need fixes, so they're kept out of the main group.",
+      "matchManagers": ["gomod"],
+      "matchPackageNames": [
+        "golang.org/x/vuln",
+        "honnef.co/go/tools",
+        "mvdan.cc/gofumpt"
+      ],
+      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "groupName": "Go tools"
+    },
+    {
       "matchManagers": ["gomod"],
       "matchDepTypes": ["golang"],
       "rangeStrategy": "bump"
+    },
+    {
+      "matchManagers": ["github-actions"],
+      "matchUpdateTypes": ["minor", "patch", "digest"],
+      "groupName": "GitHub Actions"
     }
   ]
 }
