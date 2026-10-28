@@ -119,12 +119,13 @@ func TestConvertValue(t *testing.T) {
 		},
 	}
 
-	tests := []struct {
+	type testCase struct {
 		name  string
 		field *bigquery.FieldSchema
 		value bigquery.Value
 		want  any
-	}{
+	}
+	tests := []testCase{
 		// Basic types.
 		{"STRING", field(bigquery.StringFieldType), "foo", "foo"},
 		{"BYTES", field(bigquery.BytesFieldType), []byte("foo"), []byte("foo")},
@@ -256,7 +257,9 @@ func TestConvertValue(t *testing.T) {
 		},
 	}
 
-	// NULL is passed through for every type.
+	// NULL is passed through for every type, at the top level, as a STRUCT
+	// field, and as an ARRAY element (nested values bypass convertValue's NULL
+	// check, so this covers each converter's own).
 	for _, f := range []*bigquery.FieldSchema{
 		field(bigquery.StringFieldType),
 		field(bigquery.BytesFieldType),
@@ -273,13 +276,34 @@ func TestConvertValue(t *testing.T) {
 		field(bigquery.IntervalFieldType),
 		field(bigquery.JSONFieldType),
 		rangeField(bigquery.DateFieldType),
+		record,
+		repeated(bigquery.IntegerFieldType),
 	} {
-		tests = append(tests, struct {
-			name  string
-			field *bigquery.FieldSchema
-			value bigquery.Value
-			want  any
-		}{columnType(f) + " NULL", f, nil, nil})
+		tests = append(tests, testCase{columnType(f) + " NULL", f, nil, nil})
+
+		fieldOf := *f
+		fieldOf.Name = "v"
+		structOf := &bigquery.FieldSchema{
+			Type:   bigquery.RecordFieldType,
+			Schema: bigquery.Schema{&fieldOf},
+		}
+		tests = append(tests, testCase{
+			columnType(f) + " NULL in STRUCT", structOf,
+			[]bigquery.Value{nil},
+			[]byte(`{"v":null}`),
+		})
+
+		// BigQuery doesn't support nested ARRAYs.
+		if f.Repeated {
+			continue
+		}
+		arrayOf := *f
+		arrayOf.Repeated = true
+		tests = append(tests, testCase{
+			columnType(f) + " NULL in ARRAY", &arrayOf,
+			[]bigquery.Value{nil},
+			[]byte(`[null]`),
+		})
 	}
 
 	for _, tt := range tests {
@@ -342,13 +366,25 @@ func TestConvertValueErrors(t *testing.T) {
 			want:  &unexpectedTypeError{},
 		},
 		{
-			name: "range bound type mismatch",
+			name: "range start type mismatch",
 			field: &bigquery.FieldSchema{
 				Type:             bigquery.RangeFieldType,
 				RangeElementType: &bigquery.RangeElementType{Type: bigquery.DateFieldType},
 			},
 			value: &bigquery.RangeValue{Start: int64(1)},
 			want:  &unexpectedTypeError{},
+		},
+		{
+			name: "range end type mismatch",
+			field: &bigquery.FieldSchema{
+				Type:             bigquery.RangeFieldType,
+				RangeElementType: &bigquery.RangeElementType{Type: bigquery.DateFieldType},
+			},
+			value: &bigquery.RangeValue{
+				Start: civil.Date{Year: 2024, Month: 1, Day: 1},
+				End:   int64(1),
+			},
+			want: &unexpectedTypeError{},
 		},
 		{
 			name:  "repeated not a slice",

@@ -206,6 +206,12 @@ func (r *rows) next() ([]bigquery.Value, error) {
 }
 
 func convertValue(field *bigquery.FieldSchema, value bigquery.Value) (driver.Value, error) {
+	// The ARRAY/RECORD converters return typed nils, which would otherwise be
+	// marshalled to JSON "null".
+	if value == nil {
+		return nil, nil
+	}
+
 	val, err := convertValueHelper(field, value)
 	if err != nil {
 		return nil, err
