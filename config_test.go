@@ -104,8 +104,7 @@ func TestParseDSN(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := parseDSN(tt.dsn)
 			if tt.wantErr {
-				var connStrErr *invalidConnStrError
-				if !errors.As(err, &connStrErr) {
+				if _, ok := errors.AsType[*invalidConnStrError](err); !ok {
 					t.Fatalf("parseDSN() error = %v, want *invalidConnStrError", err)
 				}
 				return
