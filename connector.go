@@ -7,9 +7,7 @@ import (
 	"cloud.google.com/go/bigquery"
 )
 
-var (
-	_ driver.Connector = (*connector)(nil)
-)
+var _ driver.Connector = (*connector)(nil)
 
 type connector struct {
 	config Config
