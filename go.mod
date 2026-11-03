@@ -10,8 +10,8 @@ tool (
 
 require (
 	cloud.google.com/go v0.123.0
-	cloud.google.com/go/bigquery v1.86.0
-	google.golang.org/api v0.308.0
+	cloud.google.com/go/bigquery v1.86.1
+	google.golang.org/api v0.310.0
 )
 
 require (
