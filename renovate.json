@@ -3,6 +3,7 @@
   "extends": ["config:recommended"],
   "timezone": "America/New_York",
   "schedule": ["before 10am on monday"],
+  "prHourlyLimit": 0,
   "minimumReleaseAge": "3 days",
   "osvVulnerabilityAlerts": true,
   "postUpdateOptions": ["gomodTidy", "gomodUpdateImportPaths"],
