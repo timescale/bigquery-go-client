@@ -1,6 +1,7 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
   "extends": ["config:recommended"],
+  "semanticCommits": "enabled",
   "timezone": "America/New_York",
   "schedule": ["before 10am on monday"],
   "prHourlyLimit": 0,
@@ -8,6 +9,11 @@
   "osvVulnerabilityAlerts": true,
   "postUpdateOptions": ["gomodTidy", "gomodUpdateImportPaths"],
   "packageRules": [
+    {
+      "description": "Merge non-major updates once their checks pass. Majors and lockfile maintenance (which can cross a major) stay manual.",
+      "matchUpdateTypes": ["digest", "patch", "minor", "pin", "pinDigest"],
+      "automerge": true
+    },
     {
       "matchManagers": ["gomod"],
       "matchUpdateTypes": ["minor", "patch", "digest"],
